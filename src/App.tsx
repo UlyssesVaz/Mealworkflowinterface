@@ -100,7 +100,7 @@ export default function App() {
               Home
             </Button>
             <div className="flex-1 text-center">
-              <h1>Meal Planner</h1>
+              <h1>Athyra</h1>
             </div>
             <Button
               variant="ghost"
@@ -148,7 +148,12 @@ export default function App() {
           </TabsContent>
 
           <TabsContent value="cook">
-            <CookView />
+            <CookView 
+              pantryItems={pantryItems}
+              onUpdatePantryItem={handleUpdatePantryItem}
+              onDeletePantryItem={handleDeletePantryItem}
+              onClearExpiringItems={handleClearExpiringItems}
+            />
           </TabsContent>
 
           <TabsContent value="profile">

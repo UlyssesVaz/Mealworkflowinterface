@@ -11,10 +11,19 @@ export function HomeView({ onNavigate }: HomeViewProps) {
       {/* Hero Section */}
       <div className="flex-1 flex flex-col items-center justify-center px-4 py-20">
         <div className="text-center space-y-6 max-w-3xl">
-          <h1 className="text-5xl md:text-7xl">Welcome to Meal Planner</h1>
+          <h1 className="text-5xl md:text-7xl">Welcome Home</h1>
           <p className="text-xl md:text-2xl text-gray-600">
             Plan your meals, shop smarter, and cook with what you have
           </p>
+          <div className="pt-4">
+            <Button
+              size="lg"
+              className="px-8 py-6 text-lg"
+              onClick={() => onNavigate('plan')}
+            >
+              Quick Start →
+            </Button>
+          </div>
         </div>
       </div>
 

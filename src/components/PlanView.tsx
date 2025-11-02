@@ -214,19 +214,7 @@ export function PlanView({ onNavigateToShop }: PlanViewProps) {
       {/* Expiring Items Warning */}
       {expiringItems.length > 0 && (
         <Card className="bg-orange-50 border-orange-200">
-          <CardContent className="pt-6">
-            <p className="text-sm mb-2">
-              <span className="text-orange-600">⚠️ Items expiring soon:</span>
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {expiringItems.map(item => (
-                <span key={item} className="text-sm">{item}</span>
-              ))}
-            </div>
-            <p className="text-sm text-gray-600 mt-2">
-              Generate a plan to use these ingredients!
-            </p>
-          </CardContent>
+
         </Card>
       )}
 

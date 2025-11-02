@@ -2,10 +2,12 @@ import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
+import { Textarea } from './ui/textarea';
 import { Label } from './ui/label';
 import { Badge } from './ui/badge';
 import { Progress } from './ui/progress';
-import { ArrowRight, Sparkles } from 'lucide-react';
+import { Separator } from './ui/separator';
+import { ArrowRight, Sparkles, MapPin } from 'lucide-react';
 import { UserProfile } from '../types';
 
 interface OnboardingProps {
@@ -14,44 +16,32 @@ interface OnboardingProps {
 
 export function Onboarding({ onComplete }: OnboardingProps) {
   const [step, setStep] = useState(1);
+  const [weightUnit, setWeightUnit] = useState<'lbs' | 'kg'>('lbs');
+  const [favoritesText, setFavoritesText] = useState('');
+  const [usingLocation, setUsingLocation] = useState(false);
   const [profile, setProfile] = useState<Partial<UserProfile>>({
     goals: [],
-    activityLevel: 'moderate',
+    activityLevel: 'light',
     favoriteIngredients: [],
     favoriteMeals: [],
     favoriteStores: [],
   });
 
-  const totalSteps = 4;
+  const totalSteps = 3;
 
   const goalOptions = [
     { id: 'lose-weight', label: 'Lose Weight', emoji: '📉' },
     { id: 'gain-muscle', label: 'Build Muscle', emoji: '💪' },
     { id: 'maintain', label: 'Maintain Health', emoji: '⚖️' },
-    { id: 'eat-healthy', label: 'Eat Healthier', emoji: '🥗' },
-    { id: 'save-time', label: 'Save Time', emoji: '⏱️' },
-    { id: 'reduce-waste', label: 'Reduce Waste', emoji: '♻️' },
   ];
 
   const activityLevels = [
-    { id: 'sedentary', label: 'Sedentary', desc: 'Little to no exercise' },
+    { id: 'none', label: 'None', desc: 'Little to no physical activity' },
     { id: 'light', label: 'Light', desc: 'Exercise 1-3 days/week' },
-    { id: 'moderate', label: 'Moderate', desc: 'Exercise 3-5 days/week' },
-    { id: 'very-active', label: 'Very Active', desc: 'Exercise 6-7 days/week' },
-    { id: 'athlete', label: 'Athlete', desc: 'Intense training' },
+    { id: 'active', label: 'Active', desc: 'Exercise 4+ days/week' },
   ];
 
-  const popularIngredients = [
-    'Chicken', 'Beef', 'Fish', 'Tofu', 'Eggs',
-    'Rice', 'Pasta', 'Quinoa', 'Bread',
-    'Broccoli', 'Spinach', 'Tomatoes', 'Peppers', 'Onions',
-    'Cheese', 'Yogurt', 'Milk',
-  ];
 
-  const popularMeals = [
-    'Pasta Dishes', 'Stir-fries', 'Tacos', 'Salads', 'Soups',
-    'Sandwiches', 'Bowls', 'Casseroles', 'Grilled Meats',
-  ];
 
   const popularStores = [
     'Walmart', 'Target', 'Whole Foods', 'Trader Joe\'s',
@@ -59,12 +49,8 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   ];
 
   const toggleGoal = (goalId: string) => {
-    const goals = profile.goals || [];
-    if (goals.includes(goalId)) {
-      setProfile({ ...profile, goals: goals.filter(g => g !== goalId) });
-    } else {
-      setProfile({ ...profile, goals: [...goals, goalId] });
-    }
+    // Only allow one goal selection
+    setProfile({ ...profile, goals: [goalId] });
   };
 
   const toggleItem = (array: string[], item: string) => {
@@ -75,19 +61,55 @@ export function Onboarding({ onComplete }: OnboardingProps) {
     }
   };
 
+  const handleUseLocation = () => {
+    // Placeholder for location-based store detection
+    setUsingLocation(true);
+    // In a real app, this would use geolocation API to find nearby stores
+    // For now, just set a flag that location is being used
+  };
+
+
+
   const handleNext = () => {
     if (step < totalSteps) {
       setStep(step + 1);
     } else {
-      onComplete({ ...profile, hasCompletedOnboarding: true });
+      // Store the free-form text in favoriteIngredients as a single item for AI parsing
+      const updatedProfile = {
+        ...profile,
+        favoriteIngredients: favoritesText.trim() ? [favoritesText.trim()] : [],
+        hasCompletedOnboarding: true
+      };
+      onComplete(updatedProfile);
     }
   };
 
   const canProceed = () => {
     if (step === 1) return (profile.goals?.length || 0) > 0;
-    if (step === 2) return (profile.favoriteIngredients?.length || 0) > 0;
-    if (step === 3) return (profile.favoriteMeals?.length || 0) > 0;
-    return true; // Step 4 is optional
+    if (step === 2) return favoritesText.trim().length > 0;
+    return true; // Step 3 is optional
+  };
+
+  // Simple calorie estimation (Mifflin-St Jeor equation approximation)
+  const estimateCalories = () => {
+    if (!profile.bodyWeight || !profile.activityLevel) return null;
+    
+    // Convert to kg if needed
+    const weightInKg = weightUnit === 'lbs' ? profile.bodyWeight * 0.453592 : profile.bodyWeight;
+    
+    // Rough baseline (assuming average height/age)
+    let baseCal = 1800 + (weightInKg * 10);
+    
+    // Activity multiplier
+    if (profile.activityLevel === 'none') baseCal *= 1.2;
+    if (profile.activityLevel === 'light') baseCal *= 1.375;
+    if (profile.activityLevel === 'active') baseCal *= 1.55;
+    
+    // Goal adjustment
+    if (profile.goals?.includes('lose-weight')) baseCal *= 0.85;
+    if (profile.goals?.includes('gain-muscle')) baseCal *= 1.15;
+    
+    return Math.round(baseCal);
   };
 
   return (
@@ -111,16 +133,14 @@ export function Onboarding({ onComplete }: OnboardingProps) {
               </div>
               <CardTitle className="text-2xl">
                 {step === 1 && 'Welcome! What are your goals?'}
-                {step === 2 && 'What ingredients do you love?'}
-                {step === 3 && 'What meals do you enjoy?'}
-                {step === 4 && 'Where do you shop?'}
+                {step === 2 && 'List ingredients, meals, or cuisines you enjoy'}
+                {step === 3 && 'Where do you shop?'}
               </CardTitle>
             </div>
             <CardDescription>
               {step === 1 && 'Help us personalize your meal plans'}
-              {step === 2 && 'We\'ll prioritize these in your weekly plans'}
-              {step === 3 && 'We\'ll suggest more meals like these'}
-              {step === 4 && 'Optional: We can optimize for your favorite stores'}
+              {step === 2 && 'Add as many as you like—this helps us build plans you\'ll actually want to eat'}
+              {step === 3 && 'Optional: We can optimize for your favorite stores'}
             </CardDescription>
           </CardHeader>
 
@@ -129,20 +149,21 @@ export function Onboarding({ onComplete }: OnboardingProps) {
             {step === 1 && (
               <div className="space-y-6">
                 <div className="space-y-3">
-                  <Label>Select your goals (choose all that apply)</Label>
-                  <div className="grid grid-cols-2 gap-3">
+                  <Label>What's your primary goal?</Label>
+                  <div className="grid grid-cols-3 gap-3">
                     {goalOptions.map(goal => (
                       <button
                         key={goal.id}
+                        type="button"
                         onClick={() => toggleGoal(goal.id)}
-                        className={`p-4 border-2 rounded-lg text-left transition-all ${
+                        className={`p-4 border-2 rounded-lg text-center transition-all active:scale-95 active:bg-blue-200 ${
                           profile.goals?.includes(goal.id)
-                            ? 'border-purple-500 bg-purple-50'
-                            : 'border-gray-200 hover:border-gray-300'
+                            ? 'border-blue-600 bg-blue-100 shadow-md'
+                            : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
                         }`}
                       >
                         <div className="text-2xl mb-1">{goal.emoji}</div>
-                        <div className="text-sm">{goal.label}</div>
+                        <div className={`text-sm ${profile.goals?.includes(goal.id) ? 'font-semibold' : ''}`}>{goal.label}</div>
                       </button>
                     ))}
                   </div>
@@ -150,19 +171,20 @@ export function Onboarding({ onComplete }: OnboardingProps) {
 
                 <div className="space-y-3">
                   <Label>Activity Level</Label>
-                  <div className="space-y-2">
+                  <div className="grid grid-cols-3 gap-3">
                     {activityLevels.map(level => (
                       <button
                         key={level.id}
+                        type="button"
                         onClick={() => setProfile({ ...profile, activityLevel: level.id as any })}
-                        className={`w-full p-3 border-2 rounded-lg text-left transition-all ${
+                        className={`p-4 border-2 rounded-lg transition-all active:scale-95 active:bg-blue-200 ${
                           profile.activityLevel === level.id
-                            ? 'border-purple-500 bg-purple-50'
-                            : 'border-gray-200 hover:border-gray-300'
+                            ? 'border-blue-600 bg-blue-100 shadow-md'
+                            : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
                         }`}
                       >
-                        <div className="font-medium">{level.label}</div>
-                        <div className="text-xs text-gray-600">{level.desc}</div>
+                        <div className={`text-sm ${profile.activityLevel === level.id ? 'font-semibold' : ''}`}>{level.label}</div>
+                        <div className="text-xs text-gray-600 mt-1">{level.desc}</div>
                       </button>
                     ))}
                   </div>
@@ -174,91 +196,67 @@ export function Onboarding({ onComplete }: OnboardingProps) {
                     <Input
                       id="weight"
                       type="number"
-                      placeholder="150"
+                      placeholder={weightUnit === 'lbs' ? '150' : '68'}
                       value={profile.bodyWeight || ''}
                       onChange={(e) => setProfile({ ...profile, bodyWeight: parseInt(e.target.value) || undefined })}
+                      className="flex-1"
                     />
-                    <span className="text-sm text-gray-600">lbs</span>
+                    <button
+                      type="button"
+                      onClick={() => setWeightUnit(weightUnit === 'lbs' ? 'kg' : 'lbs')}
+                      className="px-4 py-2 text-sm border-2 border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      {weightUnit}
+                    </button>
                   </div>
                 </div>
+
               </div>
             )}
 
-            {/* Step 2: Favorite Ingredients */}
+            {/* Step 2: Free-form Favorites */}
             {step === 2 && (
-              <div className="space-y-4">
-                <div className="flex flex-wrap gap-2">
-                  {popularIngredients.map(ingredient => (
-                    <Badge
-                      key={ingredient}
-                      variant={profile.favoriteIngredients?.includes(ingredient) ? 'default' : 'outline'}
-                      className="cursor-pointer text-sm py-2 px-3"
-                      onClick={() => setProfile({
-                        ...profile,
-                        favoriteIngredients: toggleItem(profile.favoriteIngredients || [], ingredient)
-                      })}
-                    >
-                      {ingredient}
-                    </Badge>
-                  ))}
-                </div>
-                <div className="space-y-2">
-                  <Label>Add your own (press Enter)</Label>
-                  <Input
-                    placeholder="e.g., Avocado"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && e.currentTarget.value.trim()) {
-                        setProfile({
-                          ...profile,
-                          favoriteIngredients: [...(profile.favoriteIngredients || []), e.currentTarget.value.trim()]
-                        });
-                        e.currentTarget.value = '';
-                      }
-                    }}
-                  />
-                </div>
+              <div className="space-y-3">
+                <Textarea
+                  id="favorites"
+                  placeholder="Tell us what you like! E.g., I love Thai food, especially spicy dishes with chicken and rice. I also enjoy Italian pasta, grilled salmon, fresh vegetables like broccoli and bell peppers..."
+                  value={favoritesText}
+                  onChange={(e) => setFavoritesText(e.target.value)}
+                  className="min-h-[200px] resize-none"
+                />
+                <p className="text-xs text-gray-500">
+                  Share your favorite ingredients, meals, cuisines, or anything else you love to eat—we'll use AI to understand your preferences!
+                </p>
               </div>
             )}
 
-            {/* Step 3: Favorite Meals */}
+            {/* Step 3: Favorite Stores */}
             {step === 3 && (
-              <div className="space-y-4">
-                <div className="flex flex-wrap gap-2">
-                  {popularMeals.map(meal => (
-                    <Badge
-                      key={meal}
-                      variant={profile.favoriteMeals?.includes(meal) ? 'default' : 'outline'}
-                      className="cursor-pointer text-sm py-2 px-3"
-                      onClick={() => setProfile({
-                        ...profile,
-                        favoriteMeals: toggleItem(profile.favoriteMeals || [], meal)
-                      })}
-                    >
-                      {meal}
-                    </Badge>
-                  ))}
+              <div className="space-y-6">
+                {/* Primary Action: Use Location */}
+                <div className="flex flex-col items-center">
+                  <Button
+                    onClick={handleUseLocation}
+                    size="lg"
+                    className="w-full max-w-md"
+                    variant={usingLocation ? 'default' : 'default'}
+                  >
+                    <MapPin className="mr-2 h-5 w-5" />
+                    {usingLocation ? 'Location enabled' : 'Use my location'}
+                  </Button>
+                  {usingLocation && (
+                    <p className="text-xs text-green-600 mt-2">We'll find stores near you</p>
+                  )}
                 </div>
-                <div className="space-y-2">
-                  <Label>Add your own (press Enter)</Label>
-                  <Input
-                    placeholder="e.g., Pizza"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && e.currentTarget.value.trim()) {
-                        setProfile({
-                          ...profile,
-                          favoriteMeals: [...(profile.favoriteMeals || []), e.currentTarget.value.trim()]
-                        });
-                        e.currentTarget.value = '';
-                      }
-                    }}
-                  />
-                </div>
-              </div>
-            )}
 
-            {/* Step 4: Favorite Stores */}
-            {step === 4 && (
-              <div className="space-y-4">
+                {/* Divider */}
+                <div className="flex items-center gap-4">
+                  <Separator className="flex-1" />
+                  <span className="text-sm text-gray-500">Or select from popular stores</span>
+                  <Separator className="flex-1" />
+                </div>
+
+                {/* Manual Store Selection */}
                 <div className="flex flex-wrap gap-2">
                   {popularStores.map(store => (
                     <Badge
@@ -273,21 +271,6 @@ export function Onboarding({ onComplete }: OnboardingProps) {
                       {store}
                     </Badge>
                   ))}
-                </div>
-                <div className="space-y-2">
-                  <Label>Add your own (press Enter)</Label>
-                  <Input
-                    placeholder="e.g., Local Co-op"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && e.currentTarget.value.trim()) {
-                        setProfile({
-                          ...profile,
-                          favoriteStores: [...(profile.favoriteStores || []), e.currentTarget.value.trim()]
-                        });
-                        e.currentTarget.value = '';
-                      }
-                    }}
-                  />
                 </div>
               </div>
             )}

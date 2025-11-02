@@ -5,6 +5,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Badge } from './ui/badge';
 import { Textarea } from './ui/textarea';
+import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 import { ArrowLeft, ArrowRight, X, Star } from 'lucide-react';
 import { Recipe, WeekPreferences } from '../types';
 
@@ -21,20 +22,19 @@ export function WeekPlanWorkflow({ onComplete, onCancel, pantryItems = [], ancho
     vibe: '',
     mustUseIngredients: pantryItems,
     avoidIngredients: [],
-    cookingDays: 5,
+    cookingDays: 7,
     prepStyle: 'daily-cooking',
     timePerDay: 30,
     anchorRecipes: anchorRecipes,
   });
+  const [selectedCookingDays, setSelectedCookingDays] = useState<string[]>(['Mon', 'Wed', 'Fri']);
 
   const totalSteps = 3;
 
   const vibeOptions = [
-    'Light & Healthy',
-    'Comfort Food', 
-    'Quick & Easy',
-    'Try New Things',
-    'Meal Prep Heavy',
+    { value: 'inspire', label: 'Inspire me - suggest new recipes' },
+    { value: 'simple', label: 'Keep it simple - quick & easy meals' },
+    { value: 'healthy', label: 'Healthy focus - lighter, nutritious meals' },
   ];
 
   const handleNext = () => {
@@ -68,6 +68,16 @@ export function WeekPlanWorkflow({ onComplete, onCancel, pantryItems = [], ancho
     }));
   };
 
+  const toggleCookingDay = (day: string) => {
+    setSelectedCookingDays(prev => {
+      if (prev.includes(day)) {
+        return prev.filter(d => d !== day);
+      } else {
+        return [...prev, day];
+      }
+    });
+  };
+
   return (
     <div className="max-w-3xl mx-auto">
       {/* Progress Header */}
@@ -91,14 +101,14 @@ export function WeekPlanWorkflow({ onComplete, onCancel, pantryItems = [], ancho
       <Card>
         <CardHeader>
           <CardTitle>
-            {step === 1 && "What's your vibe this week?"}
+            {step === 1 && 'How should we plan your week?'}
             {step === 2 && 'Any must-haves or constraints?'}
-            {step === 3 && 'Time & cooking style'}
+            {step === 3 && 'Plan your week'}
           </CardTitle>
           <CardDescription>
-            {step === 1 && 'Set the tone for your meal plan'}
+            {step === 1 && 'Choose the approach that works best for you'}
             {step === 2 && 'Ingredients to use or avoid'}
-            {step === 3 && 'How much time can you dedicate?'}
+            {step === 3 && 'Tell us about your cooking schedule'}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -123,26 +133,29 @@ export function WeekPlanWorkflow({ onComplete, onCancel, pantryItems = [], ancho
             </div>
           )}
 
-          {/* Step 1: Vibe */}
+          {/* Step 1: Planning Approach */}
           {step === 1 && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                {vibeOptions.map(vibe => (
-                  <Card
-                    key={vibe}
-                    className={`cursor-pointer transition-all ${
-                      preferences.vibe === vibe 
-                        ? 'border-blue-500 bg-blue-50' 
-                        : 'hover:border-gray-400'
-                    }`}
-                    onClick={() => toggleVibe(vibe)}
+              <RadioGroup 
+                value={preferences.vibe} 
+                onValueChange={(value) => toggleVibe(value)}
+              >
+                {vibeOptions.map(option => (
+                  <div 
+                    key={option.value}
+                    className="flex items-center space-x-3 p-4 rounded-lg border hover:bg-gray-50 cursor-pointer transition-colors"
+                    onClick={() => toggleVibe(option.value)}
                   >
-                    <CardContent className="pt-6 text-center">
-                      <p>{vibe}</p>
-                    </CardContent>
-                  </Card>
+                    <RadioGroupItem value={option.value} id={option.value} />
+                    <Label 
+                      htmlFor={option.value} 
+                      className="cursor-pointer flex-1"
+                    >
+                      {option.label}
+                    </Label>
+                  </div>
                 ))}
-              </div>
+              </RadioGroup>
             </div>
           )}
 
@@ -195,73 +208,55 @@ export function WeekPlanWorkflow({ onComplete, onCancel, pantryItems = [], ancho
             </div>
           )}
 
-          {/* Step 3: Time & Style */}
+          {/* Step 3: Plan Your Week */}
           {step === 3 && (
             <div className="space-y-6">
               <div className="space-y-3">
-                <Label>How many nights can you cook?</Label>
+                <Label>How many meals do you need?</Label>
                 <div className="flex gap-2">
-                  {[3, 4, 5, 6, 7].map(days => (
+                  {[5, 7, 10, 14].map(meals => (
                     <Button
-                      key={days}
-                      variant={preferences.cookingDays === days ? 'default' : 'outline'}
-                      onClick={() => setPreferences({ ...preferences, cookingDays: days })}
+                      key={meals}
+                      variant={preferences.cookingDays === meals ? 'default' : 'outline'}
+                      onClick={() => setPreferences({ ...preferences, cookingDays: meals })}
                     >
-                      {days}
+                      {meals} meals
                     </Button>
                   ))}
                 </div>
-                <p className="text-sm text-gray-500">
-                  Other days will be leftovers or quick meals
-                </p>
               </div>
 
               <div className="space-y-3">
-                <Label>Cooking style preference</Label>
-                <div className="grid grid-cols-2 gap-3">
-                  <Card
-                    className={`cursor-pointer transition-all ${
-                      preferences.prepStyle === 'one-big-prep'
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'hover:border-gray-400'
-                    }`}
-                    onClick={() => setPreferences({ ...preferences, prepStyle: 'one-big-prep' })}
-                  >
-                    <CardContent className="pt-6">
-                      <p className="mb-2">One Big Prep Session</p>
-                      <p className="text-sm text-gray-600">
-                        Cook/prep on Sunday, assemble during week
-                      </p>
-                    </CardContent>
-                  </Card>
-                  <Card
-                    className={`cursor-pointer transition-all ${
-                      preferences.prepStyle === 'daily-cooking'
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'hover:border-gray-400'
-                    }`}
-                    onClick={() => setPreferences({ ...preferences, prepStyle: 'daily-cooking' })}
-                  >
-                    <CardContent className="pt-6">
-                      <p className="mb-2">Daily Cooking</p>
-                      <p className="text-sm text-gray-600">
-                        Fresh meals each night, minimal prep
-                      </p>
-                    </CardContent>
-                  </Card>
+                <Label>When will you cook? (Select {selectedCookingDays.length} days)</Label>
+                <div className="flex gap-2">
+                  {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
+                    <Button
+                      key={day}
+                      variant={selectedCookingDays.includes(day) ? 'default' : 'outline'}
+                      onClick={() => toggleCookingDay(day)}
+                    >
+                      {day}
+                    </Button>
+                  ))}
                 </div>
               </div>
 
               <div className="space-y-3">
-                <Label>Average time per day (minutes)</Label>
-                <Input
-                  type="number"
-                  value={preferences.timePerDay}
-                  onChange={(e) => setPreferences({ 
-                    ...preferences, 
-                    timePerDay: parseInt(e.target.value) || 0 
-                  })}
-                />
+                <Label>Average time per meal:</Label>
+                <div className="flex gap-2">
+                  {[15, 30, 45, 60].map(minutes => (
+                    <Button
+                      key={minutes}
+                      variant={preferences.timePerDay === minutes ? 'default' : 'outline'}
+                      onClick={() => setPreferences({ 
+                        ...preferences, 
+                        timePerDay: minutes 
+                      })}
+                    >
+                      {minutes === 60 ? '60+ min' : `${minutes} min`}
+                    </Button>
+                  ))}
+                </div>
               </div>
             </div>
           )}

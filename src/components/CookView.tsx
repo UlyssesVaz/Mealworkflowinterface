@@ -3,15 +3,27 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Alert, AlertDescription } from './ui/alert';
-import { AlertCircle, Calendar as CalendarIcon, Plus } from 'lucide-react';
-import { mockPantryItems, mockFavoriteRecipes } from '../data/mockData';
+import { AlertCircle, Calendar as CalendarIcon } from 'lucide-react';
+import { mockFavoriteRecipes } from '../data/mockData';
 import { RecipeDetailView } from './RecipeDetailView';
-import { Recipe } from '../types';
+import { PantryView } from './PantryView';
+import { Recipe, PantryItem } from '../types';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
-export function CookView() {
-  const [pantryItems] = useState(mockPantryItems);
+interface CookViewProps {
+  pantryItems: PantryItem[];
+  onUpdatePantryItem: (id: string, updates: Partial<PantryItem>) => void;
+  onDeletePantryItem: (id: string) => void;
+  onClearExpiringItems: () => void;
+}
+
+export function CookView({ 
+  pantryItems, 
+  onUpdatePantryItem, 
+  onDeletePantryItem, 
+  onClearExpiringItems 
+}: CookViewProps) {
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
 
   // Mock this week's planned meals - map to actual recipes
@@ -145,39 +157,13 @@ export function CookView() {
         </CardContent>
       </Card>
 
-      {/* Pantry Quick View */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Pantry</CardTitle>
-              <CardDescription>{pantryItems.length} items in stock</CardDescription>
-            </div>
-            <Button variant="outline" size="sm">
-              <Plus className="h-4 w-4 mr-2" />
-              Add Item
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            {pantryItems.map(item => {
-              const isExpiring = expiringItems.some(e => e.id === item.id);
-              return (
-                <div key={item.id} className={`p-2 border rounded-lg ${isExpiring ? 'border-orange-500 bg-orange-50' : ''}`}>
-                  <p className="text-sm">{item.name}</p>
-                  <p className="text-xs text-gray-500">
-                    {item.quantity} {item.unit}
-                  </p>
-                  {isExpiring && (
-                    <Badge variant="destructive" className="text-xs mt-1">Expiring soon</Badge>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
+      {/* Full Pantry Management */}
+      <PantryView
+        items={pantryItems}
+        onUpdateItem={onUpdatePantryItem}
+        onDeleteItem={onDeletePantryItem}
+        onClearExpiring={onClearExpiringItems}
+      />
     </div>
   );
 }

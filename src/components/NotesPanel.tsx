@@ -1,23 +1,21 @@
 import { useState, useRef, useEffect } from 'react';
-import { RecipeNote, NoteContribution } from '../types';
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from './ui/sheet';
+import { RecipeNote } from '../types';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from './ui/sheet';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
-import { Badge } from './ui/badge';
-import { Separator } from './ui/separator';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
+import { Input } from './ui/input';
 import { 
   StickyNote, 
-  Plus, 
-  Share2, 
-  Trash2, 
-  Edit,
   ShoppingCart,
   ChefHat,
   GripVertical,
-  MessageSquarePlus
+  Lightbulb,
+  Sparkles,
+  X,
+  Share2,
+  Copy,
+  Plus
 } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 
@@ -31,37 +29,43 @@ export function NotesPanel({ currentRecipeId, currentRecipeName }: NotesPanelPro
   const [notes, setNotes] = useState<RecipeNote[]>([
     {
       id: '1',
-      title: 'Korean Eggplant Notes',
-      content: 'Remember to cut the eggplant into 1-inch cubes. Partner prefers less spicy - use only 1 tsp of gochugaru instead of 2.',
-      type: 'recipe-note',
-      recipeId: 'korean-eggplant',
-      createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-      updatedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-      contributions: [
-        {
-          id: 'c1',
-          userId: 'partner',
-          userName: 'Partner',
-          content: 'Also, I find it easier when the garlic is minced really fine!',
-          createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
-        }
-      ]
+      title: '',
+      content: "Don't forget cilantro",
+      type: 'shopping-note',
+      recipeId: undefined,
+      createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000),
+      updatedAt: new Date(Date.now() - 3 * 60 * 60 * 1000),
+      userId: 'current-user',
+      userName: 'You',
     },
     {
       id: '2',
-      title: 'Shopping List for This Week',
-      content: '- Chicken breast (2 lbs)\n- Rice (2 bags)\n- Mixed vegetables\n- Soy sauce\n- Sesame oil',
-      type: 'shopping-note',
-      createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
-      updatedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+      title: '',
+      content: 'Korean eggplant next week',
+      type: 'general',
+      createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+      updatedAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+      userId: 'partner',
+      userName: 'Partner',
+    },
+    {
+      id: '3',
+      title: '',
+      content: 'Less spicy',
+      type: 'recipe-note',
+      createdAt: new Date(Date.now() - 1 * 60 * 60 * 1000),
+      updatedAt: new Date(Date.now() - 1 * 60 * 60 * 1000),
+      userId: 'partner',
+      userName: 'Partner',
     }
   ]);
-  const [editingNote, setEditingNote] = useState<RecipeNote | null>(null);
-  const [newNoteTitle, setNewNoteTitle] = useState('');
   const [newNoteContent, setNewNoteContent] = useState('');
-  const [newNoteType, setNewNoteType] = useState<'recipe-note' | 'shopping-note' | 'general'>('recipe-note');
-  const [newContribution, setNewContribution] = useState('');
-  const [showNewNoteForm, setShowNewNoteForm] = useState(false);
+  const [selectedType, setSelectedType] = useState<'recipe-note' | 'shopping-note' | 'general' | null>(null);
+  const [showShareDialog, setShowShareDialog] = useState(false);
+  const [sharedWith, setSharedWith] = useState([
+    { id: '1', name: 'Partner', email: 'partner@email.com' }
+  ]);
+  const [newPersonEmail, setNewPersonEmail] = useState('');
 
   // Floating button position
   const [position, setPosition] = useState({ x: window.innerWidth - 100, y: window.innerHeight - 100 });
@@ -100,92 +104,106 @@ export function NotesPanel({ currentRecipeId, currentRecipeName }: NotesPanelPro
     }
   }, [isDragging, dragStart]);
 
-  const handleCreateNote = () => {
-    if (!newNoteTitle.trim() || !newNoteContent.trim()) {
-      toast.error('Please fill in both title and content');
+  const handleAddNote = () => {
+    if (!newNoteContent.trim()) {
+      toast.error('Please write a note');
       return;
+    }
+
+    let noteType: 'recipe-note' | 'shopping-note' | 'general' = 'general';
+    
+    // If user selected a type, use it
+    if (selectedType) {
+      noteType = selectedType;
+    } else {
+      // AI decides - simple heuristic
+      const content = newNoteContent.toLowerCase();
+      if (content.includes('buy') || content.includes('get') || content.includes('need') || content.includes('forget')) {
+        noteType = 'shopping-note';
+      } else if (content.includes('recipe') || content.includes('cook') || content.includes('spicy') || content.includes('heat')) {
+        noteType = 'recipe-note';
+      }
     }
 
     const newNote: RecipeNote = {
       id: Date.now().toString(),
-      title: newNoteTitle,
+      title: '',
       content: newNoteContent,
-      type: newNoteType,
-      recipeId: newNoteType === 'recipe-note' ? currentRecipeId : undefined,
+      type: noteType,
+      recipeId: noteType === 'recipe-note' ? currentRecipeId : undefined,
       createdAt: new Date(),
       updatedAt: new Date(),
+      userId: 'current-user',
+      userName: 'You',
     };
 
     setNotes([newNote, ...notes]);
-    setNewNoteTitle('');
     setNewNoteContent('');
-    setShowNewNoteForm(false);
-    toast.success('Note created!');
-  };
-
-  const handleDeleteNote = (noteId: string) => {
-    setNotes(notes.filter(n => n.id !== noteId));
-    toast.success('Note deleted');
-  };
-
-  const handleShareNote = (note: RecipeNote) => {
-    const shareText = `${note.title}\n\n${note.content}${note.contributions && note.contributions.length > 0 ? '\n\nContributions:\n' + note.contributions.map(c => `- ${c.userName}: ${c.content}`).join('\n') : ''}`;
-    
-    if (navigator.share) {
-      navigator.share({
-        title: note.title,
-        text: shareText,
-      }).then(() => {
-        toast.success('Note shared successfully!');
-      }).catch(() => {
-        navigator.clipboard.writeText(shareText);
-        toast.success('Note copied to clipboard!');
-      });
-    } else {
-      navigator.clipboard.writeText(shareText);
-      toast.success('Note copied to clipboard!');
-    }
-  };
-
-  const handleAddContribution = (noteId: string) => {
-    if (!newContribution.trim()) return;
-
-    const contribution: NoteContribution = {
-      id: Date.now().toString(),
-      userId: 'current-user',
-      userName: 'You',
-      content: newContribution,
-      createdAt: new Date(),
-    };
-
-    setNotes(notes.map(note => {
-      if (note.id === noteId) {
-        return {
-          ...note,
-          contributions: [...(note.contributions || []), contribution],
-          updatedAt: new Date(),
-        };
-      }
-      return note;
-    }));
-
-    setNewContribution('');
-    toast.success('Contribution added!');
-  };
-
-  const getFilteredNotes = (type?: 'recipe-note' | 'shopping-note' | 'general') => {
-    return type ? notes.filter(n => n.type === type) : notes;
+    setSelectedType(null);
+    toast.success('Note added!');
   };
 
   const getNoteIcon = (type: RecipeNote['type']) => {
     switch (type) {
       case 'recipe-note':
-        return <ChefHat className="h-4 w-4" />;
+        return '🍳';
       case 'shopping-note':
-        return <ShoppingCart className="h-4 w-4" />;
+        return '🛒';
       default:
-        return <StickyNote className="h-4 w-4" />;
+        return '💡';
     }
+  };
+
+  const handleCopyLink = async () => {
+    const shareLink = `${window.location.origin}/shared-notes/abc123`;
+    
+    try {
+      await navigator.clipboard.writeText(shareLink);
+      toast.success('Link copied to clipboard!');
+    } catch (error) {
+      // Fallback for when clipboard API is blocked
+      const textArea = document.createElement('textarea');
+      textArea.value = shareLink;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-999999px';
+      document.body.appendChild(textArea);
+      textArea.select();
+      try {
+        document.execCommand('copy');
+        toast.success('Link copied to clipboard!');
+      } catch (e) {
+        toast.error('Failed to copy link');
+      }
+      document.body.removeChild(textArea);
+    }
+  };
+
+  const handleAddPerson = () => {
+    if (!newPersonEmail.trim()) {
+      toast.error('Please enter an email address');
+      return;
+    }
+    
+    // Simple email validation
+    if (!newPersonEmail.includes('@')) {
+      toast.error('Please enter a valid email address');
+      return;
+    }
+
+    const newPerson = {
+      id: Date.now().toString(),
+      name: newPersonEmail.split('@')[0],
+      email: newPersonEmail
+    };
+
+    setSharedWith([...sharedWith, newPerson]);
+    setNewPersonEmail('');
+    toast.success(`Invited ${newPersonEmail}`);
+  };
+
+  const handleRemovePerson = (id: string) => {
+    setSharedWith(sharedWith.filter(p => p.id !== id));
+    toast.success('Person removed');
   };
 
   return (
@@ -218,240 +236,192 @@ export function NotesPanel({ currentRecipeId, currentRecipeName }: NotesPanelPro
 
       {/* Notes Panel Sheet */}
       <Sheet open={isOpen} onOpenChange={setIsOpen}>
-        <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle className="flex items-center gap-2">
-              <StickyNote className="h-5 w-5" />
-              Notes & Contributions
-            </SheetTitle>
-            <SheetDescription>
-              Share recipe notes and shopping lists with your cooking partner
-            </SheetDescription>
+        <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
+          <SheetHeader className="pb-4">
+            <div className="flex items-center justify-between">
+              <SheetTitle className="flex items-center gap-2">
+                Quick Note
+              </SheetTitle>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowShareDialog(true)}
+                  className="h-8"
+                >
+                  <Share2 className="h-4 w-4 mr-2" />
+                  Share
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsOpen(false)}
+                  className="h-6 w-6 p-0"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
           </SheetHeader>
 
-          <div className="mt-6 space-y-6">
-            {/* New Note Button */}
-            {!showNewNoteForm && (
+          <div className="space-y-6">
+            {/* Quick Note Input */}
+            <div className="space-y-4">
+              <Textarea
+                placeholder="Type your note..."
+                value={newNoteContent}
+                onChange={(e) => setNewNoteContent(e.target.value)}
+                rows={3}
+                className="resize-none"
+              />
+
+              <div>
+                <p className="text-sm text-gray-600 mb-3">What's this about?</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant={selectedType === 'shopping-note' ? 'default' : 'outline'}
+                    onClick={() => setSelectedType(selectedType === 'shopping-note' ? null : 'shopping-note')}
+                    className="justify-start"
+                  >
+                    <ShoppingCart className="h-4 w-4 mr-2" />
+                    Shopping
+                  </Button>
+                  <Button
+                    variant={selectedType === 'recipe-note' ? 'default' : 'outline'}
+                    onClick={() => setSelectedType(selectedType === 'recipe-note' ? null : 'recipe-note')}
+                    className="justify-start"
+                  >
+                    <ChefHat className="h-4 w-4 mr-2" />
+                    Recipe
+                  </Button>
+                  <Button
+                    variant={selectedType === 'general' ? 'default' : 'outline'}
+                    onClick={() => setSelectedType(selectedType === 'general' ? null : 'general')}
+                    className="justify-start"
+                  >
+                    <Lightbulb className="h-4 w-4 mr-2" />
+                    Idea
+                  </Button>
+                  <Button
+                    variant={selectedType === null ? 'default' : 'outline'}
+                    onClick={() => setSelectedType(null)}
+                    className="justify-start"
+                  >
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    Let AI decide
+                  </Button>
+                </div>
+              </div>
+
               <Button 
-                onClick={() => setShowNewNoteForm(true)} 
+                onClick={handleAddNote} 
                 className="w-full"
+                disabled={!newNoteContent.trim()}
               >
-                <Plus className="h-4 w-4 mr-2" />
-                Create New Note
+                Add Note
               </Button>
-            )}
+            </div>
 
-            {/* New Note Form */}
-            {showNewNoteForm && (
-              <Card className="border-purple-200">
-                <CardHeader>
-                  <CardTitle className="text-base">Create New Note</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <label className="text-sm mb-2 block">Note Type</label>
-                    <Tabs value={newNoteType} onValueChange={(v) => setNewNoteType(v as any)}>
-                      <TabsList className="grid w-full grid-cols-3">
-                        <TabsTrigger value="recipe-note">
-                          <ChefHat className="h-4 w-4 mr-2" />
-                          Recipe
-                        </TabsTrigger>
-                        <TabsTrigger value="shopping-note">
-                          <ShoppingCart className="h-4 w-4 mr-2" />
-                          Shopping
-                        </TabsTrigger>
-                        <TabsTrigger value="general">
-                          <StickyNote className="h-4 w-4 mr-2" />
-                          General
-                        </TabsTrigger>
-                      </TabsList>
-                    </Tabs>
-                  </div>
-
-                  {currentRecipeName && newNoteType === 'recipe-note' && (
-                    <Badge variant="outline">For: {currentRecipeName}</Badge>
-                  )}
-
-                  <div>
-                    <label className="text-sm mb-2 block">Title</label>
-                    <Input
-                      placeholder="e.g., Korean Eggplant Tips"
-                      value={newNoteTitle}
-                      onChange={(e) => setNewNoteTitle(e.target.value)}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-sm mb-2 block">Content</label>
-                    <Textarea
-                      placeholder="Write your note here..."
-                      value={newNoteContent}
-                      onChange={(e) => setNewNoteContent(e.target.value)}
-                      rows={4}
-                    />
-                  </div>
-
-                  <div className="flex gap-2">
-                    <Button onClick={handleCreateNote} className="flex-1">
-                      Create Note
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      onClick={() => {
-                        setShowNewNoteForm(false);
-                        setNewNoteTitle('');
-                        setNewNoteContent('');
-                      }}
+            {/* Divider */}
+            <div className="border-t pt-6">
+              <h3 className="text-sm text-gray-600 mb-4">Recent</h3>
+              
+              {notes.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-8">
+                  No notes yet
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {notes.map(note => (
+                    <div 
+                      key={note.id} 
+                      className="flex items-start gap-3 text-sm"
                     >
-                      Cancel
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            <Separator />
-
-            {/* Notes Tabs */}
-            <Tabs defaultValue="all">
-              <TabsList className="grid w-full grid-cols-4">
-                <TabsTrigger value="all">All ({notes.length})</TabsTrigger>
-                <TabsTrigger value="recipe">Recipe</TabsTrigger>
-                <TabsTrigger value="shopping">Shopping</TabsTrigger>
-                <TabsTrigger value="general">General</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="all" className="space-y-4 mt-4">
-                {notes.length === 0 ? (
-                  <Card>
-                    <CardContent className="pt-6 text-center text-gray-500">
-                      No notes yet. Create your first note!
-                    </CardContent>
-                  </Card>
-                ) : (
-                  notes.map(note => (
-                    <Card key={note.id}>
-                      <CardHeader>
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              {getNoteIcon(note.type)}
-                              <CardTitle className="text-base">{note.title}</CardTitle>
-                            </div>
-                            <p className="text-xs text-gray-500">
-                              {note.createdAt.toLocaleDateString()}
-                            </p>
-                          </div>
-                          <div className="flex gap-2">
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={() => handleShareNote(note)}
-                            >
-                              <Share2 className="h-4 w-4" />
-                            </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={() => handleDeleteNote(note.id)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        <p className="whitespace-pre-wrap">{note.content}</p>
-
-                        {/* Contributions */}
-                        {note.contributions && note.contributions.length > 0 && (
-                          <div className="border-t pt-4">
-                            <p className="text-sm mb-2">💬 Contributions from others:</p>
-                            <div className="space-y-2">
-                              {note.contributions.map(contribution => (
-                                <div key={contribution.id} className="bg-blue-50 p-3 rounded">
-                                  <div className="flex items-center justify-between mb-1">
-                                    <span className="text-sm">{contribution.userName}</span>
-                                    <span className="text-xs text-gray-500">
-                                      {contribution.createdAt.toLocaleDateString()}
-                                    </span>
-                                  </div>
-                                  <p className="text-sm text-gray-700">{contribution.content}</p>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Add Contribution */}
-                        <div className="border-t pt-4">
-                          <div className="flex gap-2">
-                            <Input
-                              placeholder="Add a contribution..."
-                              value={newContribution}
-                              onChange={(e) => setNewContribution(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  handleAddContribution(note.id);
-                                }
-                              }}
-                            />
-                            <Button 
-                              size="sm"
-                              onClick={() => handleAddContribution(note.id)}
-                            >
-                              <MessageSquarePlus className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))
-                )}
-              </TabsContent>
-
-              <TabsContent value="recipe" className="space-y-4 mt-4">
-                {getFilteredNotes('recipe-note').map(note => (
-                  <Card key={note.id}>
-                    <CardHeader>
-                      <CardTitle className="text-base">{note.title}</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="whitespace-pre-wrap">{note.content}</p>
-                    </CardContent>
-                  </Card>
-                ))}
-              </TabsContent>
-
-              <TabsContent value="shopping" className="space-y-4 mt-4">
-                {getFilteredNotes('shopping-note').map(note => (
-                  <Card key={note.id}>
-                    <CardHeader>
-                      <CardTitle className="text-base">{note.title}</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="whitespace-pre-wrap">{note.content}</p>
-                    </CardContent>
-                  </Card>
-                ))}
-              </TabsContent>
-
-              <TabsContent value="general" className="space-y-4 mt-4">
-                {getFilteredNotes('general').map(note => (
-                  <Card key={note.id}>
-                    <CardHeader>
-                      <CardTitle className="text-base">{note.title}</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="whitespace-pre-wrap">{note.content}</p>
-                    </CardContent>
-                  </Card>
-                ))}
-              </TabsContent>
-            </Tabs>
+                      <span className="text-lg flex-shrink-0">
+                        {getNoteIcon(note.type)}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-gray-700">"{note.content}"</span>
+                        <span className="text-gray-400"> • {note.userName}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </SheetContent>
       </Sheet>
+
+      {/* Share Dialog */}
+      <Dialog open={showShareDialog} onOpenChange={setShowShareDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Share Notes</DialogTitle>
+            <DialogDescription>
+              Anyone with the link can view and add notes to your meal plan
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+
+            <div className="space-y-3">
+              <h4 className="text-sm">Currently shared with:</h4>
+              {sharedWith.length === 0 ? (
+                <p className="text-sm text-gray-400">No one yet</p>
+              ) : (
+                <div className="space-y-2">
+                  {sharedWith.map(person => (
+                    <div 
+                      key={person.id} 
+                      className="flex items-center justify-between bg-gray-50 p-2 rounded"
+                    >
+                      <div className="flex-1">
+                        <p className="text-sm">{person.name}</p>
+                        <p className="text-xs text-gray-500">{person.email}</p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRemovePerson(person.id)}
+                        className="h-6 w-6 p-0"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-2">
+              <Input
+                placeholder="Enter email address"
+                value={newPersonEmail}
+                onChange={(e) => setNewPersonEmail(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleAddPerson();
+                  }
+                }}
+              />
+              <Button onClick={handleAddPerson} size="sm">
+                <Plus className="h-4 w-4 mr-1" />
+                Add person
+              </Button>
+            </div>
+
+            <Button 
+              onClick={handleCopyLink} 
+              variant="outline" 
+              className="w-full"
+            >
+              <Copy className="h-4 w-4 mr-2" />
+              Copy link
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
