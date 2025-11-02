@@ -36,9 +36,9 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   ];
 
   const activityLevels = [
-    { id: 'none', label: 'None', desc: 'Little to no physical activity' },
     { id: 'light', label: 'Light', desc: 'Exercise 1-3 days/week' },
-    { id: 'active', label: 'Active', desc: 'Exercise 4+ days/week' },
+    { id: 'moderate', label: 'Moderate', desc: 'Exercise 3-5 days/week' },
+    { id: 'very-active', label: 'Very Active', desc: 'Exercise 6-7 days/week' }
   ];
 
 
@@ -75,11 +75,21 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       setStep(step + 1);
     } else {
       // Store the free-form text in favoriteIngredients as a single item for AI parsing
-      const updatedProfile = {
+      const updatedProfile: Partial<UserProfile> = {
         ...profile,
         favoriteIngredients: favoritesText.trim() ? [favoritesText.trim()] : [],
+        // Ensure all required fields are present with correct types
+        goals: profile.goals || [],
+        activityLevel: profile.activityLevel || 'moderate',
+        favoriteMeals: profile.favoriteMeals || [],
+        favoriteStores: profile.favoriteStores || [],
+        foodExclusions: profile.foodExclusions || [],
+        mealLayout: 'breakfast-lunch-dinner' as const,
+        preferredCookingDays: [],
+        typicalPrepTime: 30,
         hasCompletedOnboarding: true
       };
+      console.log('Completing onboarding with profile:', updatedProfile);
       onComplete(updatedProfile);
     }
   };
@@ -101,9 +111,11 @@ export function Onboarding({ onComplete }: OnboardingProps) {
     let baseCal = 1800 + (weightInKg * 10);
     
     // Activity multiplier
-    if (profile.activityLevel === 'none') baseCal *= 1.2;
+    if (profile.activityLevel === 'sedentary') baseCal *= 1.2;
     if (profile.activityLevel === 'light') baseCal *= 1.375;
-    if (profile.activityLevel === 'active') baseCal *= 1.55;
+    if (profile.activityLevel === 'moderate') baseCal *= 1.55;
+    if (profile.activityLevel === 'very-active') baseCal *= 1.725;
+    if (profile.activityLevel === 'athlete') baseCal *= 1.9;
     
     // Goal adjustment
     if (profile.goals?.includes('lose-weight')) baseCal *= 0.85;

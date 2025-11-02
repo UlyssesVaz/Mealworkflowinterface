@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
 import { Button } from './components/ui/button';
 import { Calendar, ShoppingCart, ChefHat, Home, User, LogOut, LogIn, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { HomeView } from './components/HomeView';
 import { PlanView } from './components/PlanView';
 import { ShopView } from './components/ShopView';
@@ -22,111 +23,108 @@ export default function App() {
   const { isAuthenticated, isLoading, loginWithRedirect, user, getAccessTokenSilently } = useAuth0();
   const [activeTab, setActiveTab] = useState('home');
   const [pantryItems, setPantryItems] = useState<PantryItem[]>(mockPantryItems);
-  const [userProfile, setUserProfile] = useState<UserProfile>(() => {
-    // Try to load profile from localStorage, but only if it matches the current user
-    const savedProfile = localStorage.getItem('userProfile');
-    if (savedProfile && user?.sub) {
-      const parsedProfile = JSON.parse(savedProfile);
-      if (parsedProfile.userId === user.sub) {
-        return parsedProfile;
-      }
-    }
-    // Default profile if none exists or it's a different user
-    return {
-      hasCompletedOnboarding: false,
-      userId: user?.sub, // Add the Auth0 user ID
-      goals: [],
-      activityLevel: 'moderate',
-      favoriteIngredients: [],
-      favoriteMeals: [],
-      favoriteStores: [],
-      foodExclusions: [],
-      mealLayout: 'breakfast-lunch-dinner',
-      preferredCookingDays: [],
-      typicalPrepTime: 30,
-    };
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  const [userProfile, setUserProfile] = useState<UserProfile>({
+    hasCompletedOnboarding: false,
+    userId: '',
+    goals: [],
+    activityLevel: 'moderate',
+    favoriteIngredients: [],
+    favoriteMeals: [],
+    favoriteStores: [],
+    foodExclusions: [],
+    mealLayout: 'breakfast-lunch-dinner',
+    preferredCookingDays: [],
+    typicalPrepTime: 30,
   });
 
-  // Check onboarding status from Auth0 metadata when user authenticates
+  // Load full profile from Auth0 metadata when user authenticates
   useEffect(() => {
-    if (user) {
-      const namespace = "https://pantheon.app/";
-      const appMetadata = user[`${namespace}app_metadata`];
-      
-      // Debug: Log what we're receiving
-      console.log('User object:', user);
-      console.log('App metadata:', appMetadata);
-      
-      if (appMetadata?.hasCompletedOnboarding) {
-        console.log('Onboarding was completed, skipping...');
-        // If user has completed onboarding according to Auth0, update local state
-        setUserProfile(prev => ({
-          ...prev,
-          hasCompletedOnboarding: true
-        }));
-      } else {
-        console.log('Onboarding not completed in metadata');
+    const loadProfile = async () => {
+      if (!user) return;
+
+      try {
+        console.log('Loading profile for user:', user.sub);
+        const namespace = "http://localhost:5173/";
+        const appMetadata = user[`${namespace}app_metadata`];
+        
+        console.log('Received metadata:', appMetadata);
+        
+        if (appMetadata?.profile) {
+          console.log('Found full profile in metadata');
+          // Restore FULL profile from Auth0
+          setUserProfile({
+            ...appMetadata.profile,
+            userId: user.sub,
+            hasCompletedOnboarding: appMetadata.hasCompletedOnboarding || false
+          });
+        } else if (appMetadata?.hasCompletedOnboarding) {
+          console.log('Found legacy profile (flag only)');
+          // Legacy support: only flag was saved
+          setUserProfile(prev => ({
+            ...prev,
+            userId: user.sub,
+            hasCompletedOnboarding: true
+          }));
+        } else {
+          console.log('No profile found, treating as new user');
+          // New user
+          setUserProfile(prev => ({
+            ...prev,
+            userId: user.sub
+          }));
+        }
+      } catch (error) {
+        console.error('Error loading profile:', error);
+      } finally {
+        setIsLoadingProfile(false);
       }
-    }
+    };
+
+    loadProfile();
   }, [user]);
 
   const handleCompleteOnboarding = async (profile: Partial<UserProfile>) => {
-    console.log('Starting onboarding completion...', { profile });
+    const toastId = toast.loading('Saving your preferences...');
     
-    // Update local state
-    setUserProfile({ 
-      ...userProfile, 
-      ...profile, 
-      hasCompletedOnboarding: true,
-      userId: user?.sub
-    });
-    console.log('Local state updated, user ID:', user?.sub);
-
-    // Get the access token for the Management API
     try {
-      console.log('Getting access token...');
+      // Get token for our backend API only
       const token = await getAccessTokenSilently({
         authorizationParams: {
-          audience: `https://${import.meta.env.VITE_AUTH0_DOMAIN}/api/v2/`,
-          scope: 'update:current_user_metadata'
+          audience: `http://localhost:3000`, // This should match your backend API identifier
         }
       });
-      console.log('Got access token');
 
-      // Call our backend to update Auth0 metadata
-      console.log('Calling backend endpoint...');
-      const response = await fetch('http://localhost:3000/api/complete-onboarding', {
+      // Prepare complete profile
+      const completeProfile: UserProfile = {
+        ...userProfile,
+        ...profile,
+        hasCompletedOnboarding: true,
+        userId: user?.sub
+      };
+
+      // Save to Auth0 FIRST
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/complete-onboarding`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          profile: {
-            ...profile,
-            hasCompletedOnboarding: true,
-            userId: user?.sub
-          }
-        })
+        body: JSON.stringify({ profile: completeProfile })
       });
 
       if (!response.ok) {
-        const errorData = await response.text();
-        throw new Error(`Failed to update onboarding status: ${errorData}`);
+        throw new Error(`Failed to save: ${await response.text()}`);
       }
 
-      const result = await response.json();
-      console.log('Backend response:', result);
-      console.log('Successfully updated Auth0 metadata');
+      // ONLY update local state after successful save
+      setUserProfile(completeProfile);
+      toast.success('Your preferences have been saved!', { id: toastId });
+      
     } catch (error) {
-      console.error('Failed to update Auth0 metadata:', error);
-      // Log the full error for debugging
-      if (error instanceof Error) {
-        console.error('Error details:', {
-          message: error.message,
-          stack: error.stack
-        });
-      }
+      console.error('Failed to complete onboarding:', error);
+      toast.error('Failed to save your preferences. Please try again.', { id: toastId });
+      // Don't update local state on error
     }
   };
 
@@ -172,17 +170,20 @@ export default function App() {
     });
   };
 
-  // Show loading state with spinner while Auth0 checks authentication
+  // 1. First, show Auth0 loading state
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        <div className="text-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto" />
+          <p className="text-gray-600">Loading...</p>
+        </div>
       </div>
     );
   }
 
-  // Show login screen if not authenticated
-  if (!isAuthenticated) {
+  // 2. Then show login if not authenticated
+  if (!isAuthenticated || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center space-y-6 max-w-md px-4">
@@ -199,7 +200,19 @@ export default function App() {
     );
   }
 
-  // Show onboarding if authenticated but hasn't completed onboarding
+  // 3. Show loading while fetching profile
+  if (isLoadingProfile) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto" />
+          <p className="text-gray-600">Loading your profile...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 4. Only then check onboarding status
   if (!userProfile.hasCompletedOnboarding) {
     return <Onboarding onComplete={handleCompleteOnboarding} />;
   }

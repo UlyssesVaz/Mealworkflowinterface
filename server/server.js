@@ -30,47 +30,107 @@ async function getManagementToken() {
 
   const data = await response.json();
   managementToken = data.access_token;
-  tokenExpiresAt = Date.now() + (data.expires_in * 1000);
+  // Set expiration with 5 minute buffer
+  tokenExpiresAt = Date.now() + ((data.expires_in - 300) * 1000);
   return managementToken;
 }
 
 // JWT validation middleware
 const checkJwt = auth({
-  audience: `https://${process.env.AUTH0_DOMAIN}/api/v2/`,
+  audience: 'http://localhost:3000', // This should match your API identifier in Auth0
   issuerBaseURL: `https://${process.env.AUTH0_DOMAIN}/`,
 });
+
+// Helper function for updating metadata
+async function updateUserMetadata(userId, metadata) {
+  const token = await getManagementToken();
+
+  const response = await fetch(`https://${process.env.AUTH0_DOMAIN}/api/v2/users/${userId}`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      app_metadata: metadata
+    })
+  });
+
+  if (!response.ok) {
+    const errorData = await response.text();
+    throw new Error(`Failed to update user metadata: ${errorData}`);
+  }
+
+  return await response.json();
+}
 
 // Endpoint to update onboarding status
 app.post('/api/complete-onboarding', checkJwt, async (req, res) => {
   try {
     const userId = req.auth.payload.sub;
-    
-    // Get management token
-    const token = await getManagementToken();
+    const { profile } = req.body;
 
-    // Update user's app_metadata using Management API
-    const response = await fetch(`https://${process.env.AUTH0_DOMAIN}/api/v2/users/${userId}`, {
-      method: 'PATCH',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        app_metadata: {
-          hasCompletedOnboarding: true
-        }
-      })
-    });
-
-    if (!response.ok) {
-      const errorData = await response.text();
-      throw new Error(`Failed to update user metadata: ${errorData}`);
+    if (!profile) {
+      return res.status(400).json({ error: 'Profile data is required' });
     }
 
-    res.json({ success: true });
+    // Save FULL profile to Auth0 app_metadata
+    const metadata = {
+      hasCompletedOnboarding: true,
+      profile: {
+        ...profile,
+        userId,
+        hasCompletedOnboarding: true
+      }
+    };
+
+    await updateUserMetadata(userId, metadata);
+
+    res.json({ 
+      success: true,
+      message: 'Onboarding completed successfully'
+    });
   } catch (error) {
-    console.error('Error updating onboarding status:', error);
-    res.status(500).json({ error: 'Failed to update onboarding status' });
+    console.error('Error completing onboarding:', error);
+    res.status(500).json({ 
+      error: 'Failed to complete onboarding',
+      details: error.message 
+    });
+  }
+});
+
+// Endpoint to update profile
+app.post('/api/update-profile', checkJwt, async (req, res) => {
+  try {
+    const userId = req.auth.payload.sub;
+    const { profile } = req.body;
+
+    if (!profile) {
+      return res.status(400).json({ error: 'Profile data is required' });
+    }
+
+    // Keep onboarding status but update rest of profile
+    const metadata = {
+      hasCompletedOnboarding: true,
+      profile: {
+        ...profile,
+        userId,
+        hasCompletedOnboarding: true
+      }
+    };
+
+    await updateUserMetadata(userId, metadata);
+
+    res.json({
+      success: true,
+      message: 'Profile updated successfully'
+    });
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    res.status(500).json({
+      error: 'Failed to update profile',
+      details: error.message
+    });
   }
 });
 
