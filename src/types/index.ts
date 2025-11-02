@@ -85,6 +85,7 @@ export interface WeekCreationOptions {
 export interface UserProfile {
   // Basic Info (Onboarding)
   hasCompletedOnboarding: boolean;
+  userId?: string; // Auth0 user ID
   goals: string[]; // 'lose-weight', 'gain-muscle', 'maintain', 'eat-healthy'
   activityLevel: 'sedentary' | 'light' | 'moderate' | 'very-active' | 'athlete';
   bodyWeight?: number;

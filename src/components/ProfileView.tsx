@@ -3,6 +3,7 @@ import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Separator } from './ui/separator';
 import { ChevronRight, User, Apple, Calendar, Settings as SettingsIcon, Heart, Activity, AlertCircle, Package } from 'lucide-react';
+import LogoutButton from './auth/LogoutButton';
 import { UserProfile } from '../types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { Label } from './ui/label';
@@ -338,19 +339,25 @@ export function ProfileView({ profile, onUpdateProfile, onResetOnboarding, onNav
         </DialogContent>
       </Dialog>
 
-      {/* Reset Onboarding Button */}
-      {onResetOnboarding && (
-        <div className="text-center">
-          <Button
-            variant="destructive"
-            onClick={onResetOnboarding}
-            className="mt-6"
-          >
-            <AlertCircle className="h-4 w-4 mr-2" />
-            Reset Onboarding
-          </Button>
-        </div>
-      )}
+      {/* Account Actions Section */}
+      <Card>
+        <CardContent className="p-4">
+          <h3 className="text-sm font-medium mb-3 text-gray-500">Account Actions</h3>
+          <div className="flex items-center gap-3 justify-center">
+            <LogoutButton />
+            {onResetOnboarding && (
+              <Button
+                variant="outline"
+                onClick={onResetOnboarding}
+                className="border"
+              >
+                <AlertCircle className="h-4 w-4 mr-2" />
+                Reset Onboarding
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

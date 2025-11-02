@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
 import { Button } from './components/ui/button';
-import { Calendar, ShoppingCart, ChefHat, Home, User } from 'lucide-react';
+import { Calendar, ShoppingCart, ChefHat, Home, User, LogOut, LogIn, Loader2 } from 'lucide-react';
 import { HomeView } from './components/HomeView';
 import { PlanView } from './components/PlanView';
 import { ShopView } from './components/ShopView';
@@ -13,25 +13,121 @@ import { NotesPanel } from './components/NotesPanel';
 import { UserProfile, PantryItem } from './types';
 import { Toaster } from './components/ui/sonner';
 import { mockPantryItems } from './data/mockData';
+import { useAuth0 } from '@auth0/auth0-react';
+import LoginButton from './components/auth/LoginButton';
+import LogoutButton from './components/auth/LogoutButton';
+import Profile from './components/auth/Profile';
 
 export default function App() {
+  const { isAuthenticated, isLoading, loginWithRedirect, user, getAccessTokenSilently } = useAuth0();
   const [activeTab, setActiveTab] = useState('home');
   const [pantryItems, setPantryItems] = useState<PantryItem[]>(mockPantryItems);
-  const [userProfile, setUserProfile] = useState<UserProfile>({
-    hasCompletedOnboarding: false,
-    goals: [],
-    activityLevel: 'moderate',
-    favoriteIngredients: [],
-    favoriteMeals: [],
-    favoriteStores: [],
-    foodExclusions: [],
-    mealLayout: 'breakfast-lunch-dinner',
-    preferredCookingDays: [],
-    typicalPrepTime: 30,
+  const [userProfile, setUserProfile] = useState<UserProfile>(() => {
+    // Try to load profile from localStorage, but only if it matches the current user
+    const savedProfile = localStorage.getItem('userProfile');
+    if (savedProfile && user?.sub) {
+      const parsedProfile = JSON.parse(savedProfile);
+      if (parsedProfile.userId === user.sub) {
+        return parsedProfile;
+      }
+    }
+    // Default profile if none exists or it's a different user
+    return {
+      hasCompletedOnboarding: false,
+      userId: user?.sub, // Add the Auth0 user ID
+      goals: [],
+      activityLevel: 'moderate',
+      favoriteIngredients: [],
+      favoriteMeals: [],
+      favoriteStores: [],
+      foodExclusions: [],
+      mealLayout: 'breakfast-lunch-dinner',
+      preferredCookingDays: [],
+      typicalPrepTime: 30,
+    };
   });
 
-  const handleCompleteOnboarding = (profile: Partial<UserProfile>) => {
-    setUserProfile({ ...userProfile, ...profile, hasCompletedOnboarding: true });
+  // Check onboarding status from Auth0 metadata when user authenticates
+  useEffect(() => {
+    if (user) {
+      const namespace = "https://pantheon.app/";
+      const appMetadata = user[`${namespace}app_metadata`];
+      
+      // Debug: Log what we're receiving
+      console.log('User object:', user);
+      console.log('App metadata:', appMetadata);
+      
+      if (appMetadata?.hasCompletedOnboarding) {
+        console.log('Onboarding was completed, skipping...');
+        // If user has completed onboarding according to Auth0, update local state
+        setUserProfile(prev => ({
+          ...prev,
+          hasCompletedOnboarding: true
+        }));
+      } else {
+        console.log('Onboarding not completed in metadata');
+      }
+    }
+  }, [user]);
+
+  const handleCompleteOnboarding = async (profile: Partial<UserProfile>) => {
+    console.log('Starting onboarding completion...', { profile });
+    
+    // Update local state
+    setUserProfile({ 
+      ...userProfile, 
+      ...profile, 
+      hasCompletedOnboarding: true,
+      userId: user?.sub
+    });
+    console.log('Local state updated, user ID:', user?.sub);
+
+    // Get the access token for the Management API
+    try {
+      console.log('Getting access token...');
+      const token = await getAccessTokenSilently({
+        authorizationParams: {
+          audience: `https://${import.meta.env.VITE_AUTH0_DOMAIN}/api/v2/`,
+          scope: 'update:current_user_metadata'
+        }
+      });
+      console.log('Got access token');
+
+      // Call our backend to update Auth0 metadata
+      console.log('Calling backend endpoint...');
+      const response = await fetch('http://localhost:3000/api/complete-onboarding', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          profile: {
+            ...profile,
+            hasCompletedOnboarding: true,
+            userId: user?.sub
+          }
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.text();
+        throw new Error(`Failed to update onboarding status: ${errorData}`);
+      }
+
+      const result = await response.json();
+      console.log('Backend response:', result);
+      console.log('Successfully updated Auth0 metadata');
+    } catch (error) {
+      console.error('Failed to update Auth0 metadata:', error);
+      // Log the full error for debugging
+      if (error instanceof Error) {
+        console.error('Error details:', {
+          message: error.message,
+          stack: error.stack
+        });
+      }
+    }
   };
 
   const handleUpdateProfile = (updates: Partial<UserProfile>) => {
@@ -76,7 +172,34 @@ export default function App() {
     });
   };
 
-  // Show onboarding if not completed
+  // Show loading state with spinner while Auth0 checks authentication
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
+
+  // Show login screen if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center space-y-6 max-w-md px-4">
+          <h1 className="text-4xl font-bold text-gray-900">Welcome to Pantheon</h1>
+          <p className="text-gray-600 text-lg">Plan your meals, shop smarter, cook better</p>
+          <button
+            onClick={() => loginWithRedirect()}
+            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 font-medium text-lg shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+          >
+            Sign In to Get Started
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Show onboarding if authenticated but hasn't completed onboarding
   if (!userProfile.hasCompletedOnboarding) {
     return <Onboarding onComplete={handleCompleteOnboarding} />;
   }
@@ -100,17 +223,28 @@ export default function App() {
               Home
             </Button>
             <div className="flex-1 text-center">
-              <h1>Athyra</h1>
+              <h1>Pantheon</h1>
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setActiveTab('profile')}
-              className="flex items-center gap-2"
-            >
-              <User className="h-4 w-4" />
-              Profile
-            </Button>
+            <div className="flex items-center gap-2">
+              {user?.picture ? (
+                <img
+                  src={user.picture}
+                  alt={user.name || 'User avatar'}
+                  className="w-8 h-8 rounded-full border-2 border-gray-200 cursor-pointer hover:border-blue-500 transition-colors duration-200"
+                  onClick={() => setActiveTab('profile')}
+                />
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setActiveTab('profile')}
+                  className="flex items-center gap-2"
+                >
+                  <User className="h-4 w-4" />
+                  Profile
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </header>
