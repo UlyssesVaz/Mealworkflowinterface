@@ -34,6 +34,8 @@ createRoot(rootElement).render(
       clientId={clientId}
       authorizationParams={{
         redirect_uri: window.location.origin,
+        audience: `https://${domain}/api/v2/`,  // ← Add this
+        scope: 'openid profile email offline_access update:current_user_metadata'  // ← Add this
       }}
       cacheLocation="localstorage"
       useRefreshTokens={true}

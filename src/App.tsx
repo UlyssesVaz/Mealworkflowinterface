@@ -45,7 +45,7 @@ export default function App() {
 
       try {
         console.log('Loading profile for user:', user.sub);
-        const namespace = "http://localhost:5173/";
+        const namespace = "https://pantheon.app/";
         const appMetadata = user[`${namespace}app_metadata`];
         
         console.log('Received metadata:', appMetadata);
@@ -91,7 +91,8 @@ export default function App() {
       // Get token for our backend API only
       const token = await getAccessTokenSilently({
         authorizationParams: {
-          audience: `http://localhost:3000`, // This should match your backend API identifier
+          audience: `https://${import.meta.env.VITE_AUTH0_DOMAIN}/api/v2/`,
+          scope: 'update:current_user_metadata'
         }
       });
 

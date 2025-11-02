@@ -37,7 +37,7 @@ async function getManagementToken() {
 
 // JWT validation middleware
 const checkJwt = auth({
-  audience: 'http://localhost:3000', // This should match your API identifier in Auth0
+  audience: `https://${process.env.AUTH0_DOMAIN}/api/v2/`, // This should match your API identifier in Auth0
   issuerBaseURL: `https://${process.env.AUTH0_DOMAIN}/`,
 });
 
